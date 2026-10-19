@@ -1,0 +1,66 @@
+# Agenti «Trova clienti» di MoreAI.
+# Va nel progetto PUBBLICO lorenzoofloridi/moreai-agenti, nel file .github/workflows/agenti.yml.
+# Nei progetti pubblici GitHub non conta i minuti: gli agenti non consumano niente.
+# Il codice degli agenti resta nel progetto privato linea-ai e si legge con un token di sola lettura.
+# Segreti (Settings → Secrets and variables → Actions):
+#   LINEA_REPO_TOKEN     token di sola lettura del progetto linea-ai
+#   LINEA_DATABASE_URL   stringa di connessione Supabase
+#   LINEA_DATABASE_CA    certificato di Supabase
+name: Agenti MoreAI
+
+on:
+  schedule:
+    - cron: "23 * * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: agenti-moreai
+  cancel-in-progress: false
+
+jobs:
+  giro:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          path: pubblico
+      - uses: actions/checkout@v5
+        with:
+          repository: lorenzoofloridi/linea-ai
+          token: ${{ secrets.LINEA_REPO_TOKEN }}
+          path: linea-ai
+          sparse-checkout: |
+            netlify/lib
+            scripts
+          persist-credentials: false
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: linea-ai/package-lock.json
+      - run: npm ci --omit=dev --ignore-scripts --no-audit --no-fund
+        working-directory: linea-ai
+      - run: node scripts/agenti.mjs
+        working-directory: linea-ai
+        env:
+          LINEA_DATABASE_URL: ${{ secrets.LINEA_DATABASE_URL }}
+          LINEA_DATABASE_CA: ${{ secrets.LINEA_DATABASE_CA }}
+          AGENTI_MANUALE: ${{ github.event_name == 'workflow_dispatch' }}
+      # GitHub spegne i lavori pianificati dei progetti pubblici fermi da 60 giorni:
+      # ogni 30 giorni si aggiorna un piccolo file, così restano sempre accesi.
+      - name: Tieni accesi gli agenti
+        working-directory: pubblico
+        run: |
+          last=$(git log -1 --format=%ct)
+          if [ $(( $(date +%s) - last )) -gt 2592000 ]; then
+            date -u +"Ultimo controllo: %Y-%m-%d" > ultimo-controllo.txt
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git add ultimo-controllo.txt
+            git commit -m "Agenti attivi"
+            git push
+          fi
