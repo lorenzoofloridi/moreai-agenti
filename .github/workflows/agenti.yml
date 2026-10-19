@@ -1,7 +1,8 @@
 # Agenti «Trova clienti» di MoreAI.
 # Va nel progetto PUBBLICO lorenzoofloridi/moreai-agenti, nel file .github/workflows/agenti.yml.
 # Nei progetti pubblici GitHub non conta i minuti: gli agenti non consumano niente.
-# Il codice degli agenti resta nel progetto privato linea-ai e si legge con un token di sola lettura.
+# Il codice degli agenti resta nel progetto privato linea-ai e si legge con un token di sola lettura:
+# questo file non va più cambiato, le novità arrivano da sole con il progetto privato.
 # Segreti (Settings → Secrets and variables → Actions):
 #   LINEA_REPO_TOKEN     token di sola lettura del progetto linea-ai
 #   LINEA_DATABASE_URL   stringa di connessione Supabase
@@ -23,7 +24,7 @@ concurrency:
 jobs:
   giro:
     runs-on: ubuntu-24.04
-    timeout-minutes: 15
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v5
         with:
@@ -42,9 +43,13 @@ jobs:
           node-version: 22
           cache: npm
           cache-dependency-path: linea-ai/package-lock.json
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
       - run: npm ci --omit=dev --ignore-scripts --no-audit --no-fund
         working-directory: linea-ai
-      - run: node scripts/agenti.mjs
+      # Tutto il giro (Cartografo compreso) è descritto nel progetto privato: scripts/agenti-giro.sh
+      - run: bash scripts/agenti-giro.sh
         working-directory: linea-ai
         env:
           LINEA_DATABASE_URL: ${{ secrets.LINEA_DATABASE_URL }}
